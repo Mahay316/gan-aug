@@ -6,6 +6,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from generator import Generator
+
 
 class Discriminator(nn.Module):
     def __init__(self, device):
@@ -42,35 +44,30 @@ class Discriminator(nn.Module):
         )
 
     # seq: a single piece of flow of packets
-    def compress_packet_vector(self, seq):
-        # seq_tensor PACKET_DIM * FLOW_LENGTH
-        seq_tensor = seq
-        if not torch.is_tensor(seq):
-            seq_tensor = torch.tensor(seq, dtype=torch.float32)
-        seq_tensor = seq_tensor.to(self.device)
-
-        seq_tensor = seq_tensor.swapaxes(0, 1)
+    def compress_packet_vector(self, trace_tensor):
+        # seq_tensor TRACE_LENGTH * FLOW_LENGTH * PACKET_DIM
+        seq_tensor = trace_tensor.to(self.device).swapaxes(1, 2)
 
         # pad the sequence of packets if they are not long enough
         # 7 Conv[7 - (kernel - 1)] -> 3 MaxPool
         minimum_input_length = 7
 
-        if seq_tensor.size(1) < minimum_input_length:
-            seq_tensor = F.pad(seq_tensor, (0, minimum_input_length - seq_tensor.size(1)), "constant", 0)
+        if seq_tensor.size(2) < minimum_input_length:
+            seq_tensor = F.pad(seq_tensor, (0, minimum_input_length - seq_tensor.size(2)), "constant", 0)
         seq_tensor = self.pool1(F.leaky_relu(self.conv1(seq_tensor)))
 
-        if seq_tensor.size(1) < minimum_input_length:
-            seq_tensor = F.pad(seq_tensor, (0, minimum_input_length - seq_tensor.size(1)), "constant", 0)
+        if seq_tensor.size(2) < minimum_input_length:
+            seq_tensor = F.pad(seq_tensor, (0, minimum_input_length - seq_tensor.size(2)), "constant", 0)
         seq_tensor = self.pool2(F.leaky_relu(self.conv2(seq_tensor)))
 
-        if seq_tensor.size(1) < minimum_input_length:
-            seq_tensor = F.pad(seq_tensor, (0, minimum_input_length - seq_tensor.size(1)), "constant", 0)
+        if seq_tensor.size(2) < minimum_input_length:
+            seq_tensor = F.pad(seq_tensor, (0, minimum_input_length - seq_tensor.size(2)), "constant", 0)
         seq_tensor = self.pool3(F.leaky_relu(self.conv3(seq_tensor)))
 
-        return seq_tensor.swapaxes(0, 1)
+        return seq_tensor.swapaxes(1, 2)
 
-    def compute_flow_vector(self, packet_vectors):
-        out, (h_n, c_n) = self.flowModule(packet_vectors)
+    def compute_flow_vector(self, trace_tensor):
+        out, (h_n, c_n) = self.flowModule(trace_tensor)
 
         # only the final hidden state of the last two layers of LSTM are considered
         x = h_n[-1, :] + h_n[-2, :]
@@ -91,14 +88,10 @@ class Discriminator(nn.Module):
     def forward(self, data_in):
         trace_vector_list = []
         for trace in data_in:
-            flow_vector_list = []
-            for flow in trace:
-                cpv = self.compress_packet_vector(flow)
-                fv = self.compute_flow_vector(cpv)
-                flow_vector_list.append(fv)
+            cpv = self.compress_packet_vector(trace)
+            fv = self.compute_flow_vector(cpv)
+            tv = self.compute_trace_vector(fv)
 
-            flow_vectors = torch.stack(flow_vector_list)
-            tv = self.compute_trace_vector(flow_vectors)
             trace_vector_list.append(tv)
 
         trace_batch = torch.stack(trace_vector_list)
@@ -120,3 +113,15 @@ class Discriminator(nn.Module):
                 optimizer.step()
 
 
+if __name__ == '__main__':
+    g = Generator('cuda').to('cuda')
+    d = Discriminator('cuda').to('cuda')
+
+    t1 = time.time()
+    gen = g(32)
+    t2 = time.time()
+    d([x.detach() for x in gen])
+    d(gen)
+    t3 = time.time()
+    print(t2 - t1)
+    print(t3 - t2)

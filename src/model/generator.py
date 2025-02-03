@@ -17,7 +17,7 @@ class Generator(nn.Module):
         self.flow_num_lower = 1
         self.flow_num_upper = 5
         self.flow_len_lower = 10
-        self.flow_len_upper = 200
+        self.flow_len_upper = 500
 
         self.lstm = nn.LSTM(self.noise_dim, self.lstm_output_dim, self.layer_num)
         self.fc = nn.Sequential(
@@ -32,36 +32,29 @@ class Generator(nn.Module):
             nn.LeakyReLU()
         )
 
-    def forward(self, noise, length) -> list[torch.Tensor]:
+    def synthesize(self, noise, flow_num, flow_length) -> torch.Tensor:
         # noise: FLOW_NUMBER * PACKET_DIM
         # length: length of each flow
-        trace = []
+        flow = torch.zeros(flow_length, flow_num, self.pv_dim, device=self.device)
+        x = noise.unsqueeze(0).to(self.device)
+        h_n = torch.zeros(self.layer_num, flow_num, self.lstm_output_dim, device=self.device)
+        c_n = torch.zeros(self.layer_num, flow_num, self.lstm_output_dim, device=self.device)
 
-        for i in range(len(length)):
-            flow_length = length[i]
-            flow = torch.zeros(flow_length, self.pv_dim).to(self.device)
+        for i in range(flow_length):
+            _, (h_n, c_n) = self.lstm(x, (h_n, c_n))
 
-            x = noise[i].unsqueeze(0).to(self.device)
-            h_n = torch.zeros(self.layer_num, self.lstm_output_dim, device=self.device)
-            c_n = torch.zeros(self.layer_num, self.lstm_output_dim, device=self.device)
+            lstm_output = h_n[-1]
+            fc_output = self.fc(lstm_output)
 
-            for j in range(flow_length):
-                _, (h_n, c_n) = self.lstm(x, (h_n, c_n))
+            # the output of the fully connected layer
+            # serves as a single packet vector within the generated flow
+            # as well as the input into LSTM at the next step
+            flow[i] = fc_output
+            x = fc_output.unsqueeze(0)
 
-                lstm_output = h_n[-1]
-                fc_output = self.fc(lstm_output)
+        return flow.swapaxes(0, 1)
 
-                # the output of the fully connected layer
-                # serves as a single packet vector within the generated flow
-                # as well as the input into LSTM at the next step
-                flow[j] = fc_output
-                x = fc_output.unsqueeze(0)
-
-            trace.append(flow)
-
-        return trace
-
-    def generate_batched(self, batch_size):
+    def forward(self, batch_size):
         minibatch = []
         for i in range(batch_size):
             # randomly sampled noise to be fed into the generator
@@ -70,7 +63,13 @@ class Generator(nn.Module):
 
             noise = torch.randn(flow_num, self.noise_dim)
 
-            sample = self.forward(noise, length)
+            sample = self.synthesize(noise, flow_num, length)
             minibatch.append(sample)
 
         return minibatch
+
+
+if __name__ == '__main__':
+    g = Generator('cuda').to('cuda')
+    a = g(32)
+    print(a[0].shape)
