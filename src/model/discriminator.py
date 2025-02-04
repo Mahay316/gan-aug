@@ -1,7 +1,5 @@
-import random
 import time
-
-import numpy as np
+from utils import block
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,7 +13,7 @@ class Discriminator(nn.Module):
 
         self.pv_dim = 3
         self.feature_dim = 10
-        self.class_cnt = 7
+        self.class_cnt = 8
 
         self.device = device
 
@@ -31,15 +29,9 @@ class Discriminator(nn.Module):
         self.traceModule = nn.LSTM(self.feature_dim, self.feature_dim, num_layers=3, dropout=0.2, batch_first=True)
 
         self.classifier = nn.Sequential(
-            nn.Linear(self.feature_dim, 128),
-            nn.Dropout(),
-            nn.LeakyReLU(),
-            nn.Linear(128, 256),
-            nn.Dropout(),
-            nn.LeakyReLU(),
-            nn.Linear(256, 64),
-            nn.Dropout(),
-            nn.LeakyReLU(),
+            *block(self.feature_dim, 128),
+            *block(128, 256),
+            *block(256, 64),
             nn.Linear(64, self.class_cnt)
         )
 
@@ -118,7 +110,7 @@ if __name__ == '__main__':
     d = Discriminator('cuda').to('cuda')
 
     t1 = time.time()
-    gen = g(32)
+    gen = g(64)
     t2 = time.time()
     d([x.detach() for x in gen])
     d(gen)

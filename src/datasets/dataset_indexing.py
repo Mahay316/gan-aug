@@ -3,12 +3,13 @@ import pickle
 
 # traffic filename -> traffic type
 dataset_list = {
+    'pt_nontor.txt': 'Non-Tor',
     'pt_tor.txt': 'Tor',
-    'pt_normal.txt': 'Non-Tor',
     'pt_obfs4.txt': 'Obfs4',
-    'pt_meek.txt': 'Meek',
-    'pt_fte.txt': 'FTE',
-    'pt_webtunnel.txt': 'WebTunnel'
+    'pt_webtunnel.txt': 'WebTunnel',
+    'pt_snowflake.txt': 'SnowFlake',
+    'pt_dnstt.txt': 'Dnstt',
+    'pt_shadowsocks.txt': 'ShadowSocks'
 }
 
 
@@ -45,5 +46,5 @@ def read_sample(idx, root_dir, index_file: str = 'dataset.idx'):
 
 
 if __name__ == '__main__':
-    write_dataset_stat('D:/BaiduNetdiskDownload/Tor Traffic/')
+    write_dataset_stat('D:/traffic_dataset/')
     # read_sample(2, 'D:/BaiduNetdiskDownload/Tor Traffic/')

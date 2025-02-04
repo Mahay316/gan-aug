@@ -56,17 +56,19 @@ def my_collate_fn(data):
     labels = []
 
     for sample in data:
-        traces.append(sample[0])
+        traces.append(torch.tensor(sample[0]))
         labels.append(sample[1])
     return traces, labels
 
 
 if __name__ == '__main__':
-    root_dir = 'D:/BaiduNetdiskDownload/Tor Traffic/'
+    root_dir = 'D:/traffic_dataset'
     cd = TrafficDataset(root_dir)
 
     train, val, test = torch.utils.data.random_split(cd, [0.8, 0.1, 0.1])
-    dl = DataLoader(train, batch_size=4, shuffle=True, collate_fn=my_collate_fn)
+    dl = DataLoader(train, batch_size=32, shuffle=True, collate_fn=my_collate_fn)
+
+    print(len(dl))
 
     for batch_idx, samples in enumerate(dl):
         traces, labels = samples

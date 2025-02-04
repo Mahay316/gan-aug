@@ -105,13 +105,16 @@ for epoch in range(epoch_num):  # 将 10000 条数据迭代了两遍
         print(img.shape)
 
         output_fake = generator(fake_img)
+
         fake_socre = discriminator(output_fake.detach())  # .detach() 返回一个关闭梯度的 output_fake，这样前向传播不会修改 generater 的 grad
         D_fake_loss = criterion(fake_socre, torch.zeros_like(fake_socre))
+
         # 判断出真的
         real_socre = discriminator(img)
         D_real_loss = criterion(real_socre, torch.ones_like(real_socre))
 
         D_loss = D_fake_loss + D_real_loss
+
         D_Apim.zero_grad()
         D_loss.backward()
         D_Apim.step()
