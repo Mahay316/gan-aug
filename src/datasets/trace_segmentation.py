@@ -60,7 +60,7 @@ def long_enough(segment, threshold) -> bool:
     return avg_flow_len >= threshold
 
 
-def packet2vector(filename, output, label, interval, threshold):
+def packet2vector(filename, output, label, time_thresh, len_thresh, mode: str):
     first_start_flag = True
 
     # variables prefixed with stat_ are for statistics purposes
@@ -70,6 +70,7 @@ def packet2vector(filename, output, label, interval, threshold):
     flows = {}
 
     start_time = 0
+    end_time = 0
 
     with PcapReader(filename) as reader:
         for pkt in reader:
@@ -81,18 +82,16 @@ def packet2vector(filename, output, label, interval, threshold):
             data = pkt_info[1]
             if first_start_flag:
                 first_start_flag = False
-                start_time = pkt.time
+                end_time = start_time = pkt.time
 
             # packet belongs to a new segment
             # hence we need to reset variables related to the previous segment
-            if pkt.time - start_time > interval:
+            if (mode == 'span' and pkt.time - start_time > time_thresh) \
+                    or (mode == 'interval' and pkt.time - end_time > time_thresh):
                 # filter out segments that are too short
-                if long_enough(segment, threshold):
+                if long_enough(segment, len_thresh):
                     write_sample(segment, label, output)
                     stat_segment_cnt += 1
-
-                    if stat_segment_cnt % 100 == 0:
-                        print('Extracted Segments:', stat_segment_cnt)
 
                 start_time = pkt.time
                 segment = []
@@ -111,10 +110,12 @@ def packet2vector(filename, output, label, interval, threshold):
                 float(pkt.time - start_time),
                 float(pkt.time - prev_time)
             )
+            # update end_time as the arrival time of the latest packet in current trace
+            end_time = pkt.time
             segment[flow_id].append(pv)
 
     # save the last segment after the loop ends
-    if long_enough(segment, threshold):
+    if long_enough(segment, len_thresh):
         write_sample(segment, label, output)
 
 
@@ -132,16 +133,18 @@ if __name__ == '__main__':
     }
 
     # entry point
-    if len(sys.argv) < 3:
-        print(f'Usage: {sys.argv[0]} interval label')
+    if len(sys.argv) < 4:
+        print(f'Usage: {sys.argv[0]} mode time_thresh label')
+        print(f'Possible values for mode: [span, interval]')
         print(f'Possible values for label:', list(type2label.keys()))
         exit(-1)
 
-    interval = int(sys.argv[1])  # seconds
-    label = int(type2label[sys.argv[2]])
+    mode = sys.argv[1]
+    time_thresh = float(sys.argv[2])  # in seconds
+    label = int(type2label[sys.argv[3]])
 
-    output_file = 'pt_' + (sys.argv[2]) + '.txt'
-    record_file = './record.tmp'
+    output_file = f'pt_{sys.argv[3]}_{mode}.txt'
+    record_file = f'./record_{mode}.tmp'
 
     with open(record_file, 'a+') as rec:
         rec.seek(0)
@@ -152,7 +155,7 @@ if __name__ == '__main__':
                 # packet vectorization
                 print('Processing pcap file:', file)
                 with open(output_file, 'a') as output:
-                    packet2vector(file, output, label, interval, threshold=20)
+                    packet2vector(file, output, label, time_thresh, 32, mode)
                     output.flush()
 
                 # processed file bookkeeping
