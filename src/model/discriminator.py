@@ -25,13 +25,15 @@ class Discriminator(nn.Module):
         self.conv3 = nn.Conv1d(self.feature_dim // 2, self.feature_dim, kernel_size=5)
         self.pool3 = nn.MaxPool1d(3, stride=3, padding=1)
 
-        self.flowModule = nn.LSTM(self.feature_dim, self.feature_dim, num_layers=3, dropout=0.2, batch_first=True)
-        self.traceModule = nn.LSTM(self.feature_dim, self.feature_dim, num_layers=3, dropout=0.2, batch_first=True)
+        self.flowModule = nn.LSTM(self.feature_dim, self.feature_dim, num_layers=1, batch_first=True)
+        self.traceModule = nn.LSTM(self.feature_dim, self.feature_dim, num_layers=1, batch_first=True)
 
         self.classifier = nn.Sequential(
-            *block(self.feature_dim, 128),
+            *block(self.feature_dim, 64),
+            *block(64, 128),
             *block(128, 256),
-            *block(256, 64),
+            *block(256, 128),
+            *block(128, 64),
             nn.Linear(64, self.class_cnt)
         )
 
@@ -62,7 +64,7 @@ class Discriminator(nn.Module):
         out, (h_n, c_n) = self.flowModule(trace_tensor)
 
         # only the final hidden state of the last two layers of LSTM are considered
-        x = h_n[-1, :] + h_n[-2, :]
+        x = h_n[-1, :]  # + h_n[-2, :]
 
         return x
 
@@ -70,13 +72,22 @@ class Discriminator(nn.Module):
         out, (h_n, c_n) = self.traceModule(flow_vectors)
 
         # only the final hidden state of the last two layers of LSTM are considered
-        x = h_n[-1, :] + h_n[-2, :]
+        x = h_n[-1, :]  # + h_n[-2, :]
 
         return x
 
-    # data_in is batched !Python list!
-    # because traces are of different shapes
-    # shape = batch_size * trace_shape
+    def forward_classifier(self, trace_batch):
+        return self.classifier(trace_batch)
+
+    def freeze_parameters(self, exclude='classifier'):
+        for name, param in self.named_parameters():
+            if exclude not in name:
+                param.requires_grad = False
+
+    def unfreeze_parameters(self):
+        for param in self.parameters():
+            param.requires_grad = True
+
     def forward(self, data_in):
         trace_vector_list = []
         for trace in data_in:
@@ -87,33 +98,15 @@ class Discriminator(nn.Module):
             trace_vector_list.append(tv)
 
         trace_batch = torch.stack(trace_vector_list)
-        return self.classifier(trace_batch)
-
-    def my_train(self, dataloader, batch_size, optimizer, epoch_num):
-        self.train()
-
-        for epoch in range(epoch_num):
-            for i, (X, Y) in enumerate(dataloader):
-                predict = self.forward(X)
-                y_pred = predict.argmax(dim=1, keepdim=True)
-
-                y_ground = torch.tensor(Y)
-                loss = F.cross_entropy(y_pred, y_ground)
-
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+        return self.forward_classifier(trace_batch)
 
 
 if __name__ == '__main__':
-    g = Generator('cuda').to('cuda')
-    d = Discriminator('cuda').to('cuda')
+    d = Discriminator('cpu')
+    d.freeze_parameters()
+    for name, param in d.named_parameters():
+        print(f'{name}: {param.requires_grad}')
 
-    t1 = time.time()
-    gen = g(64)
-    t2 = time.time()
-    d([x.detach() for x in gen])
-    d(gen)
-    t3 = time.time()
-    print(t2 - t1)
-    print(t3 - t2)
+    d.unfreeze_parameters()
+    for name, param in d.named_parameters():
+        print(f'{name}: {param.requires_grad}')

@@ -66,8 +66,34 @@ class Generator(nn.Module):
         return minibatch
 
 
+class Generator2(nn.Module):
+    def __init__(self, device):
+        super().__init__()
+
+        self.device = device
+        self.noise_dim = 10
+        self.feature_dim = 10
+
+        self.fc = nn.Sequential(
+            *block(self.noise_dim, 32),
+            *block(32, 64),
+            *block(64, 128),
+            *block(128, 256),
+            *block(256, 128),
+            *block(128, 64),
+            *block(64, 32),
+            *block(32, self.feature_dim),
+        )
+
+    def forward(self, batch_size):
+        noise = torch.randn(batch_size, self.noise_dim, device=self.device)
+        output = self.fc(noise)
+
+        return output
+
+
 if __name__ == '__main__':
-    g = Generator('cuda').to('cuda')
+    g = Generator2('cuda').to('cuda')
     a = g(32)
     print(a)
-    print(a[0].shape)
+    print(a.shape)
