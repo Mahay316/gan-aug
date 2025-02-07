@@ -1,26 +1,15 @@
 import os.path
 import pickle
 
-# traffic filename -> traffic type
-dataset_list = {
-    'pt_nontor.txt': 'Non-Tor',
-    'pt_tor.txt': 'Tor',
-    'pt_obfs4.txt': 'Obfs4',
-    'pt_webtunnel.txt': 'WebTunnel',
-    'pt_snowflake.txt': 'SnowFlake',
-    'pt_dnstt.txt': 'Dnstt',
-    'pt_shadowsocks.txt': 'ShadowSocks'
-}
 
-
-def write_dataset_stat(root_dir: str, output: str = 'dataset.idx'):
+def write_dataset_stat(data_dir: str, output: str = 'dataset.idx'):
     trace_offset = []
     index_to_filename = []
 
-    for file, label in dataset_list.items():
+    for file in os.listdir(data_dir):
         offset = 0
         trace_offset_per_type = [0]
-        with open(os.path.join(root_dir, file), 'r') as f:
+        with open(os.path.join(data_dir, file), 'r') as f:
             for line in f:
                 offset += len(line)
                 trace_offset_per_type.append(offset)
@@ -29,9 +18,9 @@ def write_dataset_stat(root_dir: str, output: str = 'dataset.idx'):
         trace_offset.append(trace_offset_per_type)
         index_to_filename.append(file)
 
-        print(f'Finished processing traffic: {label}')
+        print(f'Finished processing traffic: {file}')
 
-    with open(os.path.join(root_dir, output), 'wb') as out:
+    with open(os.path.join(data_dir, output), 'wb') as out:
         pickle.dump(trace_offset, out)
         pickle.dump(index_to_filename, out)
 
@@ -39,12 +28,14 @@ def write_dataset_stat(root_dir: str, output: str = 'dataset.idx'):
 def read_sample(idx, root_dir, index_file: str = 'dataset.idx'):
     with open(os.path.join(root_dir, index_file), 'rb') as f:
         trace_offset = pickle.load(f)
+        index_to_filename = pickle.load(f)
 
-    with open(os.path.join(root_dir, 'pt_tor.txt'), 'r') as f:
+    print(index_to_filename)
+    with open(os.path.join(root_dir, index_to_filename[0]), 'r') as f:
         f.seek(trace_offset[0][idx])
         print(f.readline())
 
 
 if __name__ == '__main__':
-    write_dataset_stat('D:/traffic_dataset/')
-    # read_sample(2, 'D:/BaiduNetdiskDownload/Tor Traffic/')
+    # write_dataset_stat('D:/traffic_dataset/interval/normalized')
+    read_sample(3, 'D:/traffic_dataset/interval/normalized')
