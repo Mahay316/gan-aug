@@ -2,7 +2,7 @@ import random
 
 import torch
 import torch.nn as nn
-from utils import block
+from .utils import block
 
 
 class Generator(nn.Module):

@@ -1,5 +1,7 @@
-import torch.nn as nn
+import math
+
 import torch
+import torch.nn as nn
 
 
 def block(in_feat, out_feat, normalize=True):
@@ -23,6 +25,25 @@ class GenLoss(nn.Module):
         # not_inf_idx = ~torch.isinf(x)
 
         return torch.mean(x)
+
+
+class EarlyStopping:
+    def __init__(self, patience, min_delta=0.001):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.best_loss = math.inf
+        self.counter = 0
+
+    def __call__(self, val_loss):
+        if val_loss < self.best_loss - self.min_delta:
+            self.best_loss = val_loss
+            self.counter = 0
+        else:
+            self.counter += 1
+            if self.counter >= self.patience:
+                print('Early Stopping triggered')
+                return True
+        return False
 
 
 if __name__ == '__main__':
