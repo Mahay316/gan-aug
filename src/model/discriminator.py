@@ -1,4 +1,4 @@
-from utils import block
+from .utils import block
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
