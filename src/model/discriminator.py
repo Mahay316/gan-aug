@@ -1,21 +1,30 @@
-import time
 from utils import block
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from generator import Generator
-
 
 class Discriminator(nn.Module):
-    def __init__(self, device):
+    def __init__(self, bn_on: bool, ln_on: bool, device):
+        """
+        :param bn_on: whether enable batch normalization or not
+        :param ln_on: whether enable layer normalization or not
+        :param device: which device to put this model on
+        """
+
         super().__init__()
 
+        self.bn_on = bn_on
+        self.ln_on = ln_on
+
         self.pv_dim = 3
-        self.feature_dim = 10
+        self.feature_dim = 16
         self.class_cnt = 8
 
         self.device = device
+
+        self.flow_feature_dim = 32
+        self.trace_feature_dim = 48
 
         # Convolutional layers for packet vector compression
         self.conv1 = nn.Conv1d(in_channels=self.pv_dim, out_channels=10, kernel_size=5)
@@ -25,15 +34,18 @@ class Discriminator(nn.Module):
         self.conv3 = nn.Conv1d(self.feature_dim // 2, self.feature_dim, kernel_size=5)
         self.pool3 = nn.MaxPool1d(3, stride=3, padding=1)
 
-        self.flowModule = nn.LSTM(self.feature_dim, self.feature_dim, num_layers=1, batch_first=True)
-        self.traceModule = nn.LSTM(self.feature_dim, self.feature_dim, num_layers=1, batch_first=True)
+        self.flowModule = nn.LSTM(self.feature_dim, self.flow_feature_dim, num_layers=1, batch_first=True)
+        self.flow_ln = nn.LayerNorm(self.flow_feature_dim)
+
+        self.traceModule = nn.LSTM(self.flow_feature_dim, self.trace_feature_dim, num_layers=1, batch_first=True)
+        self.trace_ln = nn.LayerNorm(self.trace_feature_dim)
 
         self.classifier = nn.Sequential(
-            *block(self.feature_dim, 64),
-            *block(64, 128),
-            *block(128, 256),
-            *block(256, 128),
-            *block(128, 64),
+            *block(self.trace_feature_dim, 64, normalize=self.bn_on),
+            *block(64, 128, normalize=self.bn_on),
+            *block(128, 256, normalize=self.bn_on),
+            *block(256, 128, normalize=self.bn_on),
+            *block(128, 64, normalize=self.bn_on),
             nn.Linear(64, self.class_cnt)
         )
 
@@ -65,6 +77,8 @@ class Discriminator(nn.Module):
 
         # only the final hidden state of the last two layers of LSTM are considered
         x = h_n[-1, :]  # + h_n[-2, :]
+        if self.ln_on:
+            x = self.flow_ln(x)
 
         return x
 
@@ -73,6 +87,8 @@ class Discriminator(nn.Module):
 
         # only the final hidden state of the last two layers of LSTM are considered
         x = h_n[-1, :]  # + h_n[-2, :]
+        if self.ln_on:
+            x = self.trace_ln(x)
 
         return x
 
