@@ -1,11 +1,11 @@
-from .utils import block
+from .utils import leaky_block
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
 class Discriminator(nn.Module):
-    def __init__(self, bn_on: bool, ln_on: bool, device):
+    def __init__(self, bn_on: bool, ln_on: bool, num_classes: int, device):
         """
         :param bn_on: whether enable batch normalization or not
         :param ln_on: whether enable layer normalization or not
@@ -19,7 +19,7 @@ class Discriminator(nn.Module):
 
         self.pv_dim = 3
         self.feature_dim = 16
-        self.class_cnt = 8
+        self.num_classes = num_classes
 
         self.device = device
 
@@ -35,18 +35,19 @@ class Discriminator(nn.Module):
         self.pool3 = nn.MaxPool1d(3, stride=3, padding=1)
 
         self.flowModule = nn.LSTM(self.feature_dim, self.flow_feature_dim, num_layers=1, batch_first=True)
-        self.flow_ln = nn.LayerNorm(self.flow_feature_dim)
-
         self.traceModule = nn.LSTM(self.flow_feature_dim, self.trace_feature_dim, num_layers=1, batch_first=True)
-        self.trace_ln = nn.LayerNorm(self.trace_feature_dim)
+
+        if self.ln_on:
+            self.flow_ln = nn.LayerNorm(self.flow_feature_dim)
+            self.trace_ln = nn.LayerNorm(self.trace_feature_dim)
 
         self.classifier = nn.Sequential(
-            *block(self.trace_feature_dim, 64, normalize=self.bn_on),
-            *block(64, 128, normalize=self.bn_on),
-            *block(128, 256, normalize=self.bn_on),
-            *block(256, 128, normalize=self.bn_on),
-            *block(128, 64, normalize=self.bn_on),
-            nn.Linear(64, self.class_cnt)
+            *leaky_block(self.trace_feature_dim, 64, normalize=self.bn_on),
+            *leaky_block(64, 128, normalize=self.bn_on),
+            *leaky_block(128, 256, normalize=self.bn_on),
+            *leaky_block(256, 128, normalize=self.bn_on),
+            *leaky_block(128, 64, normalize=self.bn_on),
+            nn.Linear(64, self.num_classes)
         )
 
     # seq: a single piece of flow of packets
@@ -94,15 +95,6 @@ class Discriminator(nn.Module):
 
     def forward_classifier(self, trace_batch):
         return self.classifier(trace_batch)
-
-    def freeze_parameters(self, exclude='classifier'):
-        for name, param in self.named_parameters():
-            if exclude not in name:
-                param.requires_grad = False
-
-    def unfreeze_parameters(self):
-        for param in self.parameters():
-            param.requires_grad = True
 
     def forward(self, data_in):
         trace_vector_list = []

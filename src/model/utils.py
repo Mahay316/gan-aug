@@ -4,12 +4,28 @@ import torch
 import torch.nn as nn
 
 
-def block(in_feat, out_feat, normalize=True):
+def leaky_block(in_feat, out_feat, normalize=True):
     layers = [nn.Linear(in_feat, out_feat)]
     if normalize:
         layers.append(nn.BatchNorm1d(out_feat))
     layers.append(nn.LeakyReLU())
     return layers
+
+
+def block(in_feat, out_feat, normalize=True):
+    layers = [nn.Linear(in_feat, out_feat)]
+    if normalize:
+        layers.append(nn.BatchNorm1d(out_feat))
+    layers.append(nn.ReLU())
+    return layers
+
+
+def label_smoothing(labels, num_classes, smoothing=0.1):
+    batch_size = labels.size(0)
+    smoothed_labels = torch.full((batch_size, num_classes), smoothing / (num_classes - 1))
+    smoothed_labels.scatter_(1, labels.unsqueeze(1), 1.0 - smoothing)
+
+    return smoothed_labels
 
 
 class GenLoss(nn.Module):
@@ -47,7 +63,7 @@ class EarlyStopping:
 
 
 if __name__ == '__main__':
-    loss = GenLoss()
+    labels = torch.randint(0, 6, (32,))
+    b = label_smoothing(labels, 6)
 
-    a = torch.tensor([[1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 3, 4, 5, 6, 7, 8]], dtype=torch.float32)
-    print(loss(a))
+    print(b)

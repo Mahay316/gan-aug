@@ -1,4 +1,5 @@
 import json
+import math
 import random
 import os.path
 
@@ -6,7 +7,7 @@ import torch
 import numpy as np
 import pickle
 
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, Subset
 
 
 class TrafficDataset(Dataset):
@@ -42,19 +43,38 @@ class TrafficDataset(Dataset):
         res_sorted = [x for _, x in sorted(zip(self.index_to_label, sample_counts))]
         return res_sorted
 
-    def get_labels(self):
-        ret = []
-        for label, dataset in zip(self.index_to_label, self.dataset_index):
-            ret.extend([label] * len(dataset))
-        return ret
-
     def get_subset_labels(self, subset: torch.utils.data.Subset):
+        """
+        returns labels of samples referenced by a Subset's indices
+        """
         ret = np.zeros(len(subset.indices), dtype=np.int32)
         for i, idx in enumerate(subset.indices):
             file_idx, _ = self.calculate_file_and_offset(idx)
             ret[i] = self.index_to_label[file_idx]
 
         return ret
+
+    def reduce_subset(self, subset: torch.utils.data.Subset, target_label: int, drop_rate: float):
+        labels = self.get_subset_labels(subset)
+        target_label_count = np.sum(labels == target_label)
+
+        reserved_idx = random.sample(
+            list(range(target_label_count)),
+            k=math.ceil(target_label_count * (1 - drop_rate))
+        )
+        reserved_idx = set(reserved_idx)
+
+        new_indices = []
+        running_target_count = -1
+        for i, idx in enumerate(subset.indices):
+            if labels[i] == target_label:
+                running_target_count += 1
+                if running_target_count not in reserved_idx:
+                    continue
+
+            new_indices.append(idx)
+
+        return Subset(self, new_indices)
 
     def __len__(self):
         return sum([len(x) for x in self.dataset_index])
@@ -94,7 +114,7 @@ def get_my_collate(drop_prob=0, drop_class=None):
 
 
 if __name__ == '__main__':
-    root_dir = 'D:/traffic_dataset/interval/normalized'
+    root_dir = 'D:/traffic_dataset/span/normalized'
     cd = TrafficDataset(root_dir)
 
     print(cd.get_sample_count())

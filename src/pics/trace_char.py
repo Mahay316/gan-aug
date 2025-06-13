@@ -4,15 +4,10 @@ import numpy as np
 from traffic_stat import get_packet_count, get_byte_count
 
 # traffic filename -> traffic type
-dataset_list = {
-    'pt_tor.txt': 'Tor',
-    'pt_normal.txt': 'Non-Tor',
-    'pt_obfs4.txt': 'Obfs4',
-    'pt_meek.txt': 'Meek',
-    'pt_fte.txt': 'FTE',
-    'pt_webtunnel.txt': 'WebTunnel'
-}
-
+dataset_list = ['nontor', 'tor', 'obfs4', 'webtunnel', 'snowflake', 'dnstt', 'shadowsocks']
+plt.rcParams['axes.labelsize'] = 12
+plt.rcParams['xtick.labelsize'] = 12
+plt.rcParams['ytick.labelsize'] = 12
 
 def draw_cdf(samples, label):
     data_sorted = sorted(samples)
@@ -27,11 +22,17 @@ def draw_line(sample, label):
     plt.plot(values, counts, label=label, marker='none', linestyle='-')
 
 
-root_dir = 'D:/BaiduNetdiskDownload/Tor Traffic/'
+seg_method = 'interval'
+root_dir = f'D:/traffic_dataset/{seg_method}/'
+
+
+def get_filename(label):
+    return f'pt_{label}_{seg_method}.txt'
+
 
 # draw packet count line
-for file, label in dataset_list.items():
-    ret = get_packet_count(root_dir + file)
+for label in dataset_list:
+    ret = get_packet_count(root_dir + get_filename(label))
     samples = list(map(lambda x: sum(x), ret))
     draw_line(samples, label)
 
@@ -40,13 +41,14 @@ plt.grid(True, which='both', linestyle='--', alpha=0.7)
 plt.xlabel('The number of packets in trace')
 plt.ylabel('Probability Distribution')
 plt.legend()
+plt.tight_layout()
 plt.show()
 
 plt.clf()
 
 # draw packet length cdf
-for file, label in dataset_list.items():
-    ret = get_packet_count(root_dir + file)
+for label in dataset_list:
+    ret = get_packet_count(root_dir + get_filename(label))
     samples = list(map(lambda x: sum(x), ret))
     draw_cdf(samples, label)
 
@@ -56,12 +58,12 @@ plt.xlabel('The number of packets in trace')
 plt.ylabel('Probability')
 plt.legend()
 plt.show()
-
+plt.tight_layout()
 plt.clf()
 
-# draw byte count cdf
-for file, label in dataset_list.items():
-    ret = get_byte_count(root_dir + file)
+# draw byte count line
+for label in dataset_list:
+    ret = get_byte_count(root_dir + get_filename(label))
     samples = list(map(lambda x: sum(x), ret))
     draw_line(samples, label)
 
@@ -70,12 +72,13 @@ plt.grid(True, which='both', linestyle='--', alpha=0.7)
 plt.xlabel('The total bytes in trace')
 plt.ylabel('Probability Distribution')
 plt.legend()
+plt.tight_layout()
 plt.show()
 
 plt.clf()
-# draw byte count line
-for file, label in dataset_list.items():
-    ret = get_byte_count(root_dir + file)
+# draw byte count cdf
+for label in dataset_list:
+    ret = get_byte_count(root_dir + get_filename(label))
     samples = list(map(lambda x: sum(x), ret))
     draw_cdf(samples, label)
 
@@ -84,4 +87,5 @@ plt.grid(True, which='both', linestyle='--', alpha=0.7)
 plt.xlabel('The total bytes in trace')
 plt.ylabel('Probability')
 plt.legend()
+plt.tight_layout()
 plt.show()

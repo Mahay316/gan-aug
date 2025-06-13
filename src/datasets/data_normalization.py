@@ -57,13 +57,11 @@ def normalize_dataset(data_dir, output_dir, min_vals, max_vals):
 
 
 if __name__ == "__main__":
-    data_directory = "D:/traffic_dataset"
-    output_directory = "D:/traffic_dataset/normalized_dataset"
+    data_directory = "D:/traffic_dataset/interval"
+    output_directory = "D:/traffic_dataset/interval/normalized"
 
     print("Finding global min and max values...")
-    # min_values, max_values = find_global_min_max(data_directory)
-    min_values = np.array([-6.5226e+04, -2.8413e-02, -9.2428e-02], dtype=np.float32)
-    max_values = np.array([6.533400e+04, 5.000000e+00, 4.994087e+00], dtype=np.float32)
+    min_values, max_values = find_global_min_max(data_directory)
     print("Min values:", min_values)
     print("Max values:", max_values)
 
